@@ -30,3 +30,10 @@ Flash Attention is known for its efficiency and effectiveness in various machine
 ## Conclusion
 
 This project represents a significant technical milestone in my journey of learning machine learning concepts. By implementing and exploring Flash Attention, I've gained valuable insights into its technical intricacies and potential applications. I invite you to explore the code and documentation to gain a deeper understanding of Flash Attention and its implementation details.
+
+## Blogs that helped me understand and implement
+
+* [Flash attention paper](https://lnkd.in/gHTCNkYa)
+* [Flash Attention Explained](https://lnkd.in/gHTCNkYa) by Jalammar [illustrated-transformer.github.io](https://jalammar.github.io/illustrated-transformer/)
+* [Understanding Q, K, V in Transformer Self Attention](https://medium.com/analytics-vidhya/understanding-q-k-v-in-transformer-self-attention-9a5eddaa5960) by Analytics Vidhya
+* [Understanding Flash Attention with ELI5](https://gordicaleksa.medium.com/eli5-flash-attention-5c44017022ad) by Gordical Ekşa
