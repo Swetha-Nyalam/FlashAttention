@@ -33,7 +33,6 @@ This project represents a significant technical milestone in my journey of learn
 
 ## Blogs that helped me understand and implement
 
-* [Flash attention paper](https://lnkd.in/gHTCNkYa)
 * [Flash Attention Explained](https://lnkd.in/gHTCNkYa) by Jalammar [illustrated-transformer.github.io](https://jalammar.github.io/illustrated-transformer/)
 * [Understanding Q, K, V in Transformer Self Attention](https://medium.com/analytics-vidhya/understanding-q-k-v-in-transformer-self-attention-9a5eddaa5960) by Analytics Vidhya
 * [Understanding Flash Attention with ELI5](https://gordicaleksa.medium.com/eli5-flash-attention-5c44017022ad) by Gordical Ekşa
