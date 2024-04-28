@@ -4,6 +4,18 @@ import math
 
 
 class Attention:
+    """
+    This class implements a standard attention layer.
+
+    Attributes:
+        Q (np.ndarray): Query matrix of shape (N, d_model).
+        V (np.ndarray): Value matrix of shape (N, d_model).
+        K (np.ndarray): Key matrix of shape (N, d_model).
+        N (int): Number of elements in a sequence (sequence length).
+        d_model (int): Dimension of the model.
+
+    """
+
     def __init__(self, Q, V, K):
         self.Q = Q
         self.V = V
@@ -12,10 +24,25 @@ class Attention:
         self.d_model = Q.shape[0]
 
     def softmax(self, S):
+        """
+        Applies softmax function to normalize attention scores.
+
+        Args:
+            S (np.ndarray): Input matrix of attention scores.
+
+        Returns:
+            np.ndarray: Softmax normalized attention weights.
+        """
         S_norm = np.exp(S-np.max(S, axis=0, keepdims=True))
         return np.divide(S_norm, np.sum(S_norm, axis=0, keepdims=True))
 
     def calculate_attention(self):
+        """
+        Calculates the attention context vector.
+
+        Returns:
+            np.ndarray: Context vector of shape (N, d_model).
+        """
         S = (np.matmul(Q, K.T))/(math.sqrt(self.d_model))
         P = self.softmax(S)
         O = np.matmul(P, self.V)
@@ -23,6 +50,24 @@ class Attention:
 
 
 class FlashAttention:
+    """
+    This class implements a Flash Attention layer optimized for hardware constraints.
+
+    Attributes:
+        Q (np.ndarray): Query matrix of shape (N, d_model).
+        V (np.ndarray): Value matrix of shape (N, d_model).
+        K (np.ndarray): Key matrix of shape (N, d_model).
+        M (int): Memory capacity constraint.
+        N (int): Number of elements in a sequence (sequence length).
+        d_model (int): Dimension of the model.
+        Bc (int): Block size for columns (considering memory constraints).
+        Br (int): Block size for rows (considering memory constraints).
+        O (np.ndarray): Output matrix of shape (N, d_model).
+        l (np.ndarray): Intermediate values for row-wise summations.
+        m (np.ndarray): Intermediate values for row-wise maxima.
+
+    """
+
     def __init__(self, Q, K, V, M):
         self.Q = Q
         self.K = K
@@ -38,6 +83,12 @@ class FlashAttention:
         self.m = np.full(self.N, -np.inf)
 
     def compute_flash_attention(self):
+        """
+        Calculates the attention context vector using Flash Attention algorithm.
+
+        Returns:
+            np.ndarray: Context vector of shape (N, d_model).
+        """
         for j in range(0, self.N, self.Bc):
             # Load K𝑗 , V𝑗 from HBM to on-chip SRAM
             K_j = self.K[j:j+self.Bc, :]
@@ -76,7 +127,6 @@ class FlashAttention:
             # end for
         # end for
         return self.O
-
 
  # let N(Sequence Length = 768)
  # let d_model(d_model = 128)
