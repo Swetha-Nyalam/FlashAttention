@@ -1,111 +1,96 @@
 import numpy as np
+import torch
 import math
 
 
-# d_model: the parameter of the model
-# N: length of the input Sequence
-# M:  HBM, on-chip SRAM size
+class Attention:
+    def __init__(self, Q, V, K):
+        self.Q = Q
+        self.V = V
+        self.K = K
+        self.N = Q.shape[1]
+        self.d_model = Q.shape[0]
+
+    def softmax(self, S):
+        S_norm = np.exp(S-np.max(S, axis=0, keepdims=True))
+        return np.divide(S_norm, np.sum(S_norm, axis=0, keepdims=True))
+
+    def calculate_attention(self):
+        S = (np.matmul(Q, K.T))/(math.sqrt(self.d_model))
+        P = self.softmax(S)
+        O = np.matmul(P, self.V)
+        return O
 
 
-class FlashAttention():
-
-    def __init__(self, d_model: int, N: int, M: int):
-        # d_model = 128 and N = 512 default
-        self.d_model = d_model
-        self.N = N
-        # default M = 1028
+class FlashAttention:
+    def __init__(self, Q, K, V, M):
+        self.Q = Q
+        self.K = K
+        self.V = V
         self.M = M
+        self.N = Q.shape[0]
+        self.d_model = Q.shape[1]
+        # Set block sizes 𝐵𝑐 =  (𝑀/4𝑑) , 𝐵𝑟 = min ((𝑀/4𝑑) , d)
+        self.Bc = math.ceil(self.M/(4*d_model))
+        self.Br = min(self.Bc, self.d_model)
+        self.O = np.zeros((self.N, self.d_model))
+        self.l = np.zeros((self.N))
+        self.m = np.full(self.N, -np.inf)
 
-        assert (M % d_model == 0), "M not divisible by d_model"
+    def compute_flash_attention(self):
+        for j in range(0, self.N, self.Bc):
+            # Load K𝑗 , V𝑗 from HBM to on-chip SRAM
+            K_j = self.K[j:j+self.Bc, :]
+            V_j = self.V[j:j+self.Bc, :]
 
-        self.Bc = (M//(4*d_model))
-        self.Br = min(d_model, self.Bc)
-
-        assert (N % self.Br == 0 or N %
-                self.Bc == 0), "Sequence Length N could not be divided into the smaller SRAM chunks"
-
-        self.Tr = N//self.Br
-        self.Tc = N//self.Bc
-        # print(self.Bc)
-        # print(self.Br)
-        # print(self.Tc)
-        # print(self.Tr)
-
-    def max_of_each_row(self, Sij):
-        m_temp = np.zeros((len(Sij), 1))
-
-        return m_temp
-
-    def computeContextAwareOutput(self):
-
-        Output = np.zeros((self.N, self.d_model))
-
-        l = np.zeros((self.N))
-        m = np.full((self.N), -np.inf)
-
-        # generating the random Q, V and K matrices
-        # initialising random variables between -10 and 10
-
-        Q = np.random.rand(self.N, self.d_model) * 20 - 10
-        K = np.random.rand(self.N, self.d_model) * 20 - 10
-        V = np.random.rand(self.N, self.d_model) * 20 - 10
-
-        for j in range(0, self.Tc):
-            K_temp = K[j:j+self.Bc, :]
-            V_temp = V[j:j+self.Bc, :]
-
-            for i in range(0, self.Tr):
-                Q_temp = Q[i:i+self.Br, :]
-                O_temp = Output[i:i+self.Br, :]
-                l_temp = l[i:i+self.Br]
-                m_temp = m[i:i+self.Br]
-                mij = np.zeros((self.Br))
-                pij = np.zeros((self.Br, self.Bc))
-                lij = np.zeros((self.Br))
-                mi_new = np.zeros((self.Br))
-                li_new = np.zeros((self.Br))
-
-                # computing Sij
-                Sij = np.einsum('ij,jk->ik', Q_temp, K_temp.T)
-
-                # computing mi
-                for k in range(0, self.Br):
-                    curr_max = -math.inf
-                    for index in range(0, self.Bc):
-                        curr_max = max(curr_max, Sij[k][index])
-                    mij[k] = curr_max
-
-                # computing Pij
-                for row_index in range(0, self.Br):
-                    for col_index in range(0, self.Bc):
-                        pij[row_index][col_index] = np.exp(
-                            Sij[row_index][col_index] - mij[row_index])
-
-                # computing lij
-                for k in range(0, self.Br):
-                    row_sum = 0
-                    for index in range(0, self.Br):
-                        row_sum = row_sum+pij[k][index]
-                    lij[k] = row_sum
-
-                # computing mi_new and li_new
-                for k in range(0, self.Br):
-                    mi_new[k] = max(m_temp[i], mij[k])
-                    li_new[k] = (np.exp(m[k]-mi_new[k])*l_temp[k]) + \
-                        (np.exp(mij[k]-mi_new[k]) * lij[k])
-
-                li_diag = np.diag(li_new)
-
-                # updating output
-
-                for k in range(i, i+self.Br):
-                    Output[k] =
-
-                # updating m and l
-
-                m[i:i+self.Br] = mi_new[i:i+self.Br]
-                l[i:i+self.Br] = li_new[i:i+self.Br]
+            for i in range(0, self.N, self.Br):
+                # Load Q𝑖 , O𝑖 , ℓ𝑖 , 𝑚𝑖 from HBM to on-chip SRAM
+                Q_i = self.Q[i:i+self.Br, :]
+                O_i = self.O[i:i+self.Br, :]
+                l_i = self.l[i:i+self.Br]
+                m_i = self.m[i:i+self.Br]
+                # On chip, compute S𝑖 𝑗 = Q𝑖K𝑇 𝑗 ∈ R 𝐵𝑟×𝐵𝑐
+                S_ij = np.matmul(Q_i, K_j.T)
+                # On chip, compute 𝑚˜𝑖 𝑗 = rowmax(S𝑖 𝑗) ∈ R 𝐵𝑟 , P˜ 𝑖 𝑗 = exp(S𝑖 𝑗 − 𝑚˜𝑖 𝑗) ∈ R 𝐵𝑟×𝐵𝑐 (pointwise), ℓ˜ 𝑖 𝑗 = rowsum(P˜ 𝑖 𝑗) ∈ R 𝐵𝑟
+                m_ij = np.max(S_ij, axis=1, keepdims=False)
+                P_ij = np.exp(S_ij-m_ij)
+                l_ij = np.sum(P_ij, axis=0, keepdims=True)
+                # On chip, compute 𝑚 new 𝑖 = max(𝑚𝑖 , 𝑚˜𝑖 𝑗) ∈ R 𝐵𝑟 , ℓ new 𝑖 = 𝑒 𝑚𝑖−𝑚new 𝑖 ℓ𝑖 + 𝑒 𝑚˜𝑖 𝑗−𝑚new 𝑖 ℓ˜ 𝑖 𝑗 ∈ R 𝐵𝑟
+                mi_new = np.max(np.concatenate((m_i, m_ij), axis=0))
+                prev_tile_exp = np.diag(np.exp(m_i - mi_new))
+                curr_tile_exp = np.diag(np.exp(m_ij - mi_new))
+                li_new = np.matmul(prev_tile_exp, l_i) + \
+                    np.matmul(l_ij, curr_tile_exp)
+                # Write O𝑖 ← diag(ℓ new 𝑖 ) −1 (diag(ℓ𝑖)𝑒 𝑚𝑖−𝑚new 𝑖 O𝑖 + 𝑒 𝑚˜𝑖 𝑗−𝑚new 𝑖 P˜ 𝑖 𝑗V𝑗) to HBM
+                li_diag = np.diag(l_i)
+                li_new_diag = np.diag(li_new)
+                de_normalizing_prev_computation = np.matmul(
+                    li_diag, (np.dot(prev_tile_exp, O_i)))
+                curr_attention = np.dot(curr_tile_exp, (np.matmul(P_ij, V_j)))
+                # normalising the above two with the new li and updating the output
+                self.O[i:i + self.Br] = np.divide(
+                    (de_normalizing_prev_computation+curr_attention), li_new_diag)
+                # updating li and mi with the new values
+                self.m[i:i+self.Br] = mi_new
+                self.l[i:i+self.Br] = li_new
+            # end for
+        # end for
+        return self.O
 
 
-instance = FlashAttention(4, 32, 16)
-instance.computeContextAwareOutput()
+ # let N(Sequence Length = 768)
+ # let d_model(d_model = 128)
+d_model = 128
+N = 3072
+Q = np.random.rand(N, d_model)
+K = np.random.rand(N, d_model)
+V = np.random.rand(N, d_model)
+
+instance = Attention(Q, K, V)
+mat1 = instance.calculate_attention()
+
+# M = 1536
+M = 1536
+flashattention_instance = FlashAttention(Q, K, V, M)
+mat2 = flashattention_instance.compute_flash_attention()
+print(mat2)
